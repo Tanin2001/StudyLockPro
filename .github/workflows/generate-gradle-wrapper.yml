@@ -14,30 +14,52 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Java
+      - name: Set up Java 17
         uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Gradle
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Verify Flutter
+        run: flutter --version
+
+      - name: Create local.properties
+        run: |
+          echo "flutter.sdk=$FLUTTER_ROOT" > android/local.properties
+
+      - name: Set up Gradle 8.7
         uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: '8.7'
 
-      - name: Create local.properties
-        run: |
-          echo "flutter.sdk=$HOME/flutter" > android/local.properties
-
       - name: Generate Gradle Wrapper
         working-directory: android
-        run: gradle wrapper --gradle-version 8.7
+        run: gradle :wrapper --gradle-version 8.7 --distribution-type bin
+
+      - name: Verify Gradle Wrapper
+        working-directory: android
+        run: |
+          test -x gradlew
+          test -f gradlew.bat
+          test -f gradle/wrapper/gradle-wrapper.jar
+          test -f gradle/wrapper/gradle-wrapper.properties
+          grep -q 'gradle-8.7-bin.zip' gradle/wrapper/gradle-wrapper.properties
+          ./gradlew --version
 
       - name: Commit Gradle Wrapper
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add android/gradlew android/gradlew.bat android/gradle/wrapper
-          git diff --cached --quiet || git commit -m "Add Gradle wrapper"
-          git push          git diff --cached --quiet || git commit -m "Add Gradle wrapper"
-          git push
+          if git diff --cached --quiet; then
+            echo "Gradle Wrapper is already present and up to date."
+          else
+            git commit -m "Add Gradle wrapper"
+            git push
+          fi
